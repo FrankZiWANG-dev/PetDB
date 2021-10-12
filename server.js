@@ -1,11 +1,17 @@
-//include express and bodyparser (middleware) and ejs (js templates) and bcrypt (hash pwd) and passport for login validation
+//include express (routing)
 const express = require('express');
+//include bodyparser (middleware)
 const bodyParser = require('body-parser');
+//include bcrypt (hash pwd)
 const bcrypt = require('bcrypt');
+//include jsonwebtoken (token for login)
+const jwt = require('jsonwebtoken');
 
+const mongoose = require('mongoose');
+const User = require('./models/userModel.js');
 
-//users array
-const users =[];
+//connect to mongoose
+mongoose.connect('mongodb+srv://FrankZiWANG-dev:PetDBadmin1!@pets.og7dw.mongodb.net/Pets?retryWrites=true&w=majority');
 
 //init server
 const app = express();
@@ -28,19 +34,27 @@ app.get('/register', (req,res) =>{
 
 //route to send info to server by post request, to register
 app.post('/register', async(req, res) => {
-    // if(req.body.password == req.body.rePassword){
+    if(req.body.password == req.body.rePassword){
         try {
             const hashedPassword = await bcrypt.hash(req.body.password, 10)
-            users.push({
+            const user = new User({
+                _id: new mongoose.Types.ObjectId,
                 username: req.body.username,
                 email: req.body.email,
                 password: hashedPassword,
-            })
-            res.redirect('/login')
+            });
+            user
+                .save()
+                .then(result =>{
+                    console.log(result);
+                    res.redirect('/login');
+                })
+                .catch(err => console.log(err));
+           
         } catch{
             res.redirect('/register')
         }
-    // }
+    }
 });
 
 //route to login page
@@ -48,10 +62,40 @@ app.get('/login', (req,res) =>{
     res.render('login.ejs');
 });
 //route to send info to server to actually log in
-app.post('/login', (req, res) => {
+app.post('/login', (req, res, next) => {
     let username = req.body.username;
     let password = req.body.password;
-    res.send(`Username: ${username} Password: ${password}`);
+
+    User.findOne({'username':username})
+    .then(user => {
+        if(user){
+            bcrypt.compare(password, user.password, function(err, result) {
+                if(err) {
+                    res.json({
+                        error: err
+                    })
+                }
+                else if(result){
+                    console.log('Login successfull!');
+                    res.redirect('/dashboard');
+
+                } else {
+                    res.json({
+                        message: 'Password does not match'
+                    })
+                }  
+            })
+        } else {
+            res.json({
+                message: 'No user found!'
+            })
+        }
+    });
+});
+
+//route to dashboard page
+app.get('/dashboard', (req,res) =>{
+    res.render('dashboard.ejs');
 });
 
 //define port
